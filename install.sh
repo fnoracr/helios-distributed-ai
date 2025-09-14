@@ -1,65 +1,60 @@
 #!/bin/bash
 
 # --- English ---
-# Helios AI Worker - Linux Installer
-# This script must be run with root privileges (e.g., sudo bash install.sh)
+# # Helios AI Worker - Linux Installer (Online Version) #
+# This script downloads the required Python files from a public URL and installs them.
+# It must be run with root privileges (e.g., `sudo bash install.sh`).
 # --- Español ---
-# Helios AI Worker - Instalador para Linux
-# Este script debe ejecutarse con privilegios de root (ej: sudo bash install.sh)
+# # Helios AI Worker - Instalador para Linux (Versión Online) #
+# Este script descarga los archivos de Python necesarios desde una URL pública y los instala.
+# Debe ejecutarse con privilegios de root (ej: `sudo bash install.sh`).
 
 # --- Configuration ---
 # --- English ---
-# IMPORTANT: Before distributing, you must upload your Python files
-# and change these URLs to point to their raw content links.
+# IMPORTANT: These URLs must point to the "raw" content of your Python files on GitHub.
 # --- Español ---
-# IMPORTANTE: Antes de distribuir, debes subir tus archivos de Python
-# y cambiar estas URLs para que apunten a sus enlaces de contenido raw.
-WORKER_PY_URL="https://raw.githubusercontent.com/tu-usuario/tu-repo/main/worker.py"
-LAUNCHER_PY_URL="https://raw.githubusercontent.com/tu-usuario/tu-repo/main/launch_chat.py"
+# IMPORTANTE: Estas URLs deben apuntar al contenido "raw" de tus archivos de Python en GitHub.
+WORKER_PY_URL="https://raw.githubusercontent.com/fnoracr/helios-distributed-ai/main/worker_linux.py"
+LAUNCHER_PY_URL="https://raw.githubusercontent.com/fnoracr/helios-distributed-ai/main/launch_chat_linux.py"
 
+# --- System paths for installation ---
 INSTALL_DIR="/opt/HeliosAIWorker"
-CONFIG_DIR_TEMPLATE="$HOME/.config/HeliosAIWorker" # For the user running the installer
 SERVICE_FILE="/etc/systemd/system/helios-worker.service"
 DESKTOP_FILE_TEMPLATE="$HOME/.local/share/applications/helios-chat.desktop"
 
-# --- Functions ---
+# --- Functions for colored output ---
 print_green() { echo -e "\e[32m$1\e[0m"; }
 print_red() { echo -e "\e[31m$1\e[0m"; }
 
 # --- Main Script ---
-# --- English ---
-# Check for root privileges
-# --- Español ---
-# Comprobar privilegios de root
 if [ "$EUID" -ne 0 ]; then
-  print_red "Por favor, ejecuta este script como root o con sudo."
+  print_red "Please run this script as root or with sudo. | Por favor, ejecuta este script como root o con sudo."
   exit 1
 fi
 
-print_green "Iniciando la instalación de Helios AI Worker..."
+print_green "Starting Helios AI Worker installation... | Iniciando la instalación de Helios AI Worker..."
 
-# --- English ---
-# Step 1: Create directories
-# --- Español ---
-# Paso 1: Crear directorios
-echo "-> Creando directorio de instalación en $INSTALL_DIR..."
+echo "-> Updating package lists... | Actualizando lista de paquetes..."
+apt-get update -y > /dev/null
+
+echo "-> Installing dependencies (Python, pip)... | Instalando dependencias (Python, pip)..."
+apt-get install -y python3 python3-pip python3-venv > /dev/null
+
+echo "-> Creating installation directory... | Creando directorio de instalación..."
 mkdir -p $INSTALL_DIR
 
-# --- English ---
-# Step 2: Download the worker and launcher scripts
-# --- Español ---
-# Paso 2: Descargar los scripts del worker y el lanzador
-echo "-> Descargando scripts de la aplicación..."
-curl -sSLo "$INSTALL_DIR/worker.py" "$WORKER_PY_URL"
-curl -sSLo "$INSTALL_DIR/launch_chat.py" "$LAUNCHER_PY_URL"
+echo "-> Downloading application scripts... | Descargando scripts de la aplicación..."
+if ! curl -sSLo "$INSTALL_DIR/worker.py" "$WORKER_PY_URL" || ! curl -sSLo "$INSTALL_DIR/launch_chat.py" "$LAUNCHER_PY_URL"; then
+    print_red "Error: Could not download application files. Check the URLs in the script. | Error: No se pudieron descargar los archivos de la aplicación. Comprueba las URLs en el script."
+    exit 1
+fi
 chmod +x "$INSTALL_DIR/worker.py"
 chmod +x "$INSTALL_DIR/launch_chat.py"
 
-# --- English ---
-# Step 3: Create the systemd service file for auto-start
-# --- Español ---
-# Paso 3: Crear el archivo de servicio de systemd para el auto-arranque
-echo "-> Configurando el servicio de auto-arranque..."
+echo "-> Installing Python libraries... | Instalando librerías de Python..."
+python3 -m pip install requests torch transformers sentencepiece PyPDF2 python-docx Pillow librosa soundfile > /dev/null
+
+echo "-> Configuring auto-start service... | Configurando el servicio de auto-arranque..."
 cat << EOF > $SERVICE_FILE
 [Unit]
 Description=Helios AI Distributed Computing Worker
@@ -67,22 +62,18 @@ After=network.target
 
 [Service]
 Type=simple
+User=$SUDO_USER
 ExecStart=/usr/bin/python3 $INSTALL_DIR/worker.py
 Restart=on-failure
 RestartSec=10
-User=$SUDO_USER
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-# --- English ---
-# Step 4: Create the desktop launcher for the current user
-# --- Español ---
-# Paso 4: Crear el lanzador de escritorio para el usuario actual
-# This part runs as the original user to place files in their home directory
+# --- Create desktop launcher as the original user ---
 sudo -u $SUDO_USER bash << EOS
-echo "-> Creando el lanzador de aplicación..."
+echo "-> Creating application launcher... | Creando el lanzador de aplicación..."
 DESKTOP_FILE="${DESKTOP_FILE_TEMPLATE/\$HOME/$HOME}"
 mkdir -p "\$(dirname "\$DESKTOP_FILE")"
 cat << EOF > "\$DESKTOP_FILE"
@@ -99,15 +90,29 @@ EOF
 chmod +x "\$DESKTOP_FILE"
 EOS
 
-# --- English ---
-# Step 5: Enable and start the service
-# --- Español ---
-# Paso 5: Habilitar e iniciar el servicio
-echo "-> Habilitando e iniciando el servicio del worker..."
+echo "-> Enabling and starting the worker service... | Habilitando e iniciando el servicio del worker..."
 systemctl daemon-reload
 systemctl enable helios-worker.service
 systemctl start helios-worker.service
 
-print_green "¡Instalación completada!"
-print_green "Helios AI Worker se está ejecutando en segundo plano."
-print_green "Busca 'Helios AI Chat' en tu menú de aplicaciones para empezar."
+print_green "Installation complete! | ¡Instalación completada!"
+print_green "Helios AI Worker is running in the background. | Helios AI Worker se está ejecutando en segundo plano."
+print_green "Look for 'Helios AI Chat' in your application menu. | Busca 'Helios AI Chat' en tu menú de aplicaciones."
+```
+
+---
+
+### **Paso 3: Crear el Paquete de Distribución (`.tar.gz`)**
+
+Ahora que tu `install.sh` está listo, vamos a crear el paquete que le darás a los usuarios de Linux.
+
+1.  **Crea una carpeta nueva y limpia** en tu ordenador. Por ejemplo, `helios-linux-package`.
+2.  **Copia dentro de esa carpeta** solo los archivos que el usuario necesita para instalar y desinstalar:
+    * `install.sh` (la versión final con tus URLs de GitHub).
+    * `uninstall.sh`.
+    * (Opcional pero recomendado) Un archivo `README.txt` con instrucciones simples.
+3.  **Abre una terminal y navega hasta esa carpeta** (`cd helios-linux-package`).
+4.  **Ejecuta el comando `tar`** para crear el archivo comprimido.
+
+    ```bash
+    tar -czvf helios-ai-worker-linux-v1.0.tar.gz install.sh uninstall.sh
