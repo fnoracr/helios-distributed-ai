@@ -1,0 +1,49 @@
+--- English ---
+License Agreement, Disclaimer, and Terms of Use
+IMPORTANT - PLEASE READ CAREFULLY
+
+This software ("Helios AI Worker") is an open-source product provided free of charge and is currently in an experimental, developmental stage.
+
+The software is provided "AS IS", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and noninfringement.
+
+COMMERCIAL USE RESTRICTIONS
+
+All users are free to view, modify, or extend the source code of this software for personal, non-commercial use only.
+
+Any individual or entity wishing to use all or part of this code in commercial projects must notify Noragentia and may not do so without express written permission. The use of this software or any modified version of it for commercial, business, or enterprise purposes is strictly prohibited without a formal commercial agreement.
+
+To inquire about a commercial license, please contact:
+
+Noragentia Website: https://www.noragentia.com Email: info@noragentia.com
+LIMITATION OF LIABILITY
+
+IN NO EVENT SHALL THE AUTHORS, DEVELOPERS, OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+This includes, but is not limited to, potential security vulnerabilities, data loss, misuse of your computational resources, or any unexpected behavior.
+
+By clicking "I accept the agreement" and proceeding with the installation, you acknowledge that you have read, understood, and agree to all of these terms. You are using this software at your own risk.
+
+--- Español ---
+Acuerdo de Licencia, Exención de Responsabilidad y Términos de Uso
+IMPORTANTE - POR FAVOR, LEA DETENIDAMENTE
+
+Este software ("Helios AI Worker") es un producto de código abierto proporcionado de forma gratuita y se encuentra actualmente en una fase experimental y de desarrollo.
+
+El software se proporciona "TAL CUAL", sin garantía de ningún tipo, expresa o implícita, incluidas, entre otras, las garantías de comerciabilidad, idoneidad para un propósito particular y no infracción.
+
+RESTRICCIONES DE USO COMERCIAL
+
+Todos los usuarios son libres de ver, modificar o ampliar el código fuente de este software para uso personal y no comercial exclusivamente.
+
+Cualquier individuo o entidad que desee utilizar todo o parte de este código en proyectos comerciales deberá comunicárselo a Noragentia y no podrá hacerlo sin permiso expreso por escrito. El uso de este software o de cualquier versión modificada del mismo con fines comerciales, de negocio o empresariales está estrictamente prohibido sin un acuerdo comercial formal.
+
+Para solicitar una licencia de uso comercial, por favor contacte con:
+
+Noragentia Sitio Web: https://www.noragentia.com Correo Electrónico: info@noragentia.com
+LIMITACIÓN DE RESPONSABILIDAD
+
+EN NINGÚN CASO LOS AUTORES, DESARROLLADORES O TITULARES DEL COPYRIGHT SERÁN RESPONSABLES DE NINGUNA RECLAMACIÓN, DAÑO U OTRA RESPONSABILIDAD, YA SEA EN UNA ACCIÓN DE CONTRATO, AGRAVIO O CUALQUIER OTRO TIPO, QUE SURJA DE, O EN CONEXIÓN CON EL SOFTWARE O EL USO U OTROS TRATOS EN EL SOFTWARE.
+
+Esto incluye, entre otros, posibles vulnerabilidades de seguridad, pérdida de datos, mal uso de sus recursos computacionales o cualquier comportamiento inesperado.
+
+Al hacer clic en "Acepto el acuerdo" y continuar con la instalación, usted reconoce que ha leído, entendido y aceptado todos estos términos. Usted utiliza este software bajo su propio riesgo.
