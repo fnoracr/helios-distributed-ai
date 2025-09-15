@@ -224,11 +224,8 @@ async def upload_and_submit_job(worker_id: str = Form(...), prompt: str = Form("
         conn.execute("INSERT INTO sub_tasks (id, job_id, expert_type, data, status) VALUES (?, ?, ?, ?, ?)",
                      (str(uuid.uuid4()), job_id, expert_type, json.dumps({"file_path": file_path}), "pending"))
     elif prompt:
-        # --- English ---
-        # New prompt template for the Gemma model.
-        # --- Español ---
-        # Nuevo "prompt template" para el modelo Gemma.
-        prompt_template = f"<start_of_turn>user\nAnaliza el siguiente texto y proporciona dos respuestas en un único bloque de código JSON: 1. Un resumen conciso del texto en una frase. 2. Una continuación creativa o una respuesta relevante al texto.\n\nTexto del usuario: \"{prompt}\"\n\nTu respuesta JSON:<end_of_turn>\n<start_of_turn>model\n"
+        # --- English Prompt Template for the Gemma model ---
+        prompt_template = f"<start_of_turn>user\nAnalyze the following text and provide two responses in a single JSON code block: 1. 'summary': a concise one-sentence summary. 2. 'generation': a creative continuation or a relevant response to the text.\n\nUser text: \"{prompt}\"\n\nYour JSON response:<end_of_turn>\n<start_of_turn>model\n"
         conn.execute("INSERT INTO sub_tasks (id, job_id, expert_type, data, status) VALUES (?, ?, ?, ?, ?)",
                      (str(uuid.uuid4()), job_id, "general-ai", json.dumps({"text": prompt_template}), "pending"))
     else: raise HTTPException(status_code=400, detail="A prompt or a file is required. | Se requiere un prompt o un archivo.")

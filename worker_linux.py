@@ -113,15 +113,21 @@ def initialize_ai_model(model_info):
 def process_sub_task(sub_task):
     # --- English ---
     # This is the core work function. It processes a sub-task based on the
-    # worker's currently assigned role (e.g., "image-captioning").
+    # worker's currently assigned role.
     # --- Español ---
     # Esta es la función de trabajo principal. Procesa una subtarea basándose en el
-    # rol asignado actualmente al worker (ej: "image-captioning").
+    # rol asignado actualmente al worker.
     if not expert_pipeline: return {"error": "AI model not available."}
     task_data = json.loads(sub_task['data'])
     try:
         print(f"Processing '{assigned_expert_type}' sub-task {sub_task['id']}... | Procesando subtarea de '{assigned_expert_type}' {sub_task['id']}...")
-        if assigned_expert_type == "document-summarization":
+        
+        if assigned_expert_type == "general-ai":
+            # return_full_text=False ensures we only get the generated response
+            # return_full_text=False asegura que solo obtengamos la respuesta generada
+            return expert_pipeline(task_data['text'], max_new_tokens=256, return_full_text=False)[0]
+
+        elif assigned_expert_type == "document-summarization":
             file_path = task_data['file_path']
             text = ""
             if file_path.endswith('.pdf'):
@@ -133,15 +139,14 @@ def process_sub_task(sub_task):
                 for para in doc.paragraphs: text += para.text + "\n"
             if not text.strip(): return {"summary_text": "Document is empty or text could not be extracted."}
             return expert_pipeline(text, min_length=10, max_length=150)[0]
+        
         elif assigned_expert_type == "image-captioning":
             image = Image.open(task_data['file_path'])
             return expert_pipeline(image)[0]
+        
         elif assigned_expert_type == "audio-transcription":
             return expert_pipeline(task_data['file_path'])
-        elif assigned_expert_type == "summarization":
-            return expert_pipeline(task_data['text'], min_length=5, max_length=30)[0]
-        elif assigned_expert_type == "text-generation":
-            return expert_pipeline(task_data['text'], max_length=50, num_return_sequences=1)[0]
+
         else:
             return {"error": "Unknown expert type for processing."}
     except Exception as e:
@@ -177,7 +182,6 @@ def startup_sequence():
     heartbeat_thread = threading.Thread(target=send_heartbeat, args=(worker_id,))
     heartbeat_thread.daemon = True
     heartbeat_thread.start()
-    print("Waiting for task assignment... | Esperando asignación de tarea...")
     return worker_id
 
 def main_loop(worker_id):
@@ -239,7 +243,7 @@ if __name__ == "__main__":
             print("\n" + "="*60)
             print("An unhandled error occurred. | Ha ocurrido un error no controlado.")
             print(f"ERROR: {e}")
-            print("The window will close in 60 seconds. | La ventana se cerrará en 60 segundos.")
+            print("The process will exit in 60 seconds. | El proceso finalizará en 60 segundos.")
             print("="*60)
             time.sleep(60)
 

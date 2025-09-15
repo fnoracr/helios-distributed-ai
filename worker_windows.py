@@ -125,17 +125,21 @@ def initialize_ai_model(model_info):
 def process_sub_task(sub_task):
     # --- English ---
     # This is the core work function. It processes a sub-task based on the
-    # worker's currently assigned role (e.g., "image-captioning").
-    # It handles different file types and AI inference logic.
+    # worker's currently assigned role.
     # --- Español ---
     # Esta es la función de trabajo principal. Procesa una subtarea basándose en el
-    # rol asignado actualmente al worker (ej: "image-captioning").
-    # Gestiona diferentes tipos de archivo y la lógica de inferencia de IA.
+    # rol asignado actualmente al worker.
     if not expert_pipeline: return {"error": "AI model not available."}
     task_data = json.loads(sub_task['data'])
     try:
         print(f"Processing '{assigned_expert_type}' sub-task {sub_task['id']}... | Procesando subtarea de '{assigned_expert_type}' {sub_task['id']}...")
-        if assigned_expert_type == "document-summarization":
+        
+        if assigned_expert_type == "general-ai":
+            # return_full_text=False ensures we only get the generated response
+            # return_full_text=False asegura que solo obtengamos la respuesta generada
+            return expert_pipeline(task_data['text'], max_new_tokens=256, return_full_text=False)[0]
+
+        elif assigned_expert_type == "document-summarization":
             file_path = task_data['file_path']
             text = ""
             if file_path.endswith('.pdf'):
@@ -147,15 +151,14 @@ def process_sub_task(sub_task):
                 for para in doc.paragraphs: text += para.text + "\n"
             if not text.strip(): return {"summary_text": "Document is empty or text could not be extracted."}
             return expert_pipeline(text, min_length=10, max_length=150)[0]
+        
         elif assigned_expert_type == "image-captioning":
             image = Image.open(task_data['file_path'])
             return expert_pipeline(image)[0]
+        
         elif assigned_expert_type == "audio-transcription":
             return expert_pipeline(task_data['file_path'])
-        elif assigned_expert_type == "summarization":
-            return expert_pipeline(task_data['text'], min_length=5, max_length=30)[0]
-        elif assigned_expert_type == "text-generation":
-            return expert_pipeline(task_data['text'], max_length=50, num_return_sequences=1)[0]
+
         else:
             return {"error": "Unknown expert type for processing."}
     except Exception as e:
@@ -192,33 +195,14 @@ def startup_sequence():
     heartbeat_thread = threading.Thread(target=send_heartbeat, args=(worker_id,))
     heartbeat_thread.daemon = True
     heartbeat_thread.start()
-    print("Waiting for task assignment... | Esperando asignación de tarea...")
     return worker_id
 
 def main_loop(worker_id):
-    # --- English ---
-    # This is the main operational loop. It continuously asks the server for a role
-    # assignment, loads the appropriate model if the role changes, and polls for
-    # sub-tasks to process.
-    # --- Español ---
-    # Este es el bucle operacional principal. Pide continuamente una asignación de rol
-    # al servidor, carga el modelo apropiado si el rol cambia, y solicita subtareas
-    # para procesar.
-    global assigned_expert_type
+    # --- Bucle principal MODIFICADO ---
+    # Ahora este bucle solo pide subtareas del tipo ya asignado.
+    print(f"Worker en modo sondeo para tareas de tipo '{assigned_expert_type}'. | Worker polling for '{assigned_expert_type}' tasks.")
     while True:
         try:
-            # Always check for a new (potentially better) assignment based on network needs.
-            # Siempre comprobar si hay una nueva (y potencialmente mejor) asignación basada en las necesidades de la red.
-            response = requests.get(f"{ORCHESTRATOR_PUBLIC_URL}/request-assignment/{worker_id}")
-            response.raise_for_status()
-            assignment = response.json()
-            if assigned_expert_type != assignment['assigned_expert']:
-                assigned_expert_type = assignment['assigned_expert']
-                print(f"Assignment updated: I am now a '{assigned_expert_type}' expert. | Asignación actualizada: ahora soy un experto en '{assigned_expert_type}'.")
-                if not initialize_ai_model(assignment['model_info']):
-                    assigned_expert_type = None; time.sleep(10); continue
-            
-            # If assigned a role, look for a task of that type.
             # Si se le ha asignado un rol, buscar una tarea de ese tipo.
             if assigned_expert_type:
                 task_response = requests.get(f"{ORCHESTRATOR_PUBLIC_URL}/get-sub-task/{worker_id}/{assigned_expert_type}")
@@ -230,13 +214,12 @@ def main_loop(worker_id):
                         "worker_id": worker_id, "sub_task_id": sub_task['id'], "result": json.dumps(result)
                     })
                 else: 
-                    # No tasks for my specialty, wait a bit before asking again.
                     # No hay tareas para mi especialidad, esperar un poco antes de volver a preguntar.
                     time.sleep(POLL_INTERVAL)
             else: 
-                # Not assigned yet, wait before asking again.
-                # Aún no asignado, esperar antes de volver a preguntar.
-                time.sleep(10)
+                # Esto no debería ocurrir si la inicialización fue correcta.
+                print("Error: No expert type assigned. Waiting before retry. | Error: No hay tipo de experto asignado. Esperando para reintentar.")
+                time.sleep(30) # Espera más tiempo si hay un problema fundamental.
         except requests.exceptions.RequestException as e:
             print(f"Communication error: {e}. Retrying... | Error de comunicación: {e}. Reintentando...")
             time.sleep(10)
@@ -244,17 +227,30 @@ def main_loop(worker_id):
 if __name__ == "__main__":
     worker_id = None
     try:
-        # --- Inicio del bloque de captura de errores ---
+        # --- Lógica de arranque MODIFICADA ---
         try:
-            # Este bucle asegura que el worker siga intentando conectarse
+            # 1. Registrar el worker y obtener un ID.
             while worker_id is None:
                 worker_id = startup_sequence()
                 if worker_id is None:
                     print("Could not connect to server. Retrying in 1 minute... | No se pudo conectar al servidor. Reintentando en 1 minuto...")
                     time.sleep(60)
 
+            # 2. Pedir una asignación de experto y cargar el modelo UNA SOLA VEZ.
+            print("Requesting assignment from orchestrator... | Solicitando asignación al orquestador...")
+            response = requests.get(f"{ORCHESTRATOR_PUBLIC_URL}/request-assignment/{worker_id}")
+            response.raise_for_status()
+            assignment = response.json()
+            assigned_expert_type = assignment['assigned_expert']
+            print(f"Assignment received: I am a '{assigned_expert_type}' expert. | Asignación recibida: soy un experto en '{assigned_expert_type}'.")
+            
+            if not initialize_ai_model(assignment['model_info']):
+                 raise Exception("Failed to initialize the AI model.")
+
+            # 3. Iniciar el bucle principal de sondeo de tareas.
             if worker_id:
                 main_loop(worker_id)
+
         except Exception as e:
             # Si ocurre cualquier error, se muestra aquí
             print("\n" + "="*60)
@@ -263,7 +259,7 @@ if __name__ == "__main__":
             print("The window will close in 60 seconds. | La ventana se cerrará en 60 segundos.")
             print("="*60)
             time.sleep(60)
-        # --- Fin del bloque de captura de errores ---
+
     finally:
         # Este código de limpieza se ejecuta siempre, incluso si hay un error
         stop_heartbeat.set()
