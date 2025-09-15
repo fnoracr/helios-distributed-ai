@@ -3,20 +3,12 @@
 #
 # This is the client application adapted for Linux systems. The `install.sh` script
 # will download this file and configure it to run as a background service.
-#
-# HOW TO PREPARE FOR LINUX PACKAGE:
-# 1. IMPORTANT: Change the ORCHESTRATOR_PUBLIC_URL variable below.
-# 2. Upload this file to a public URL (like a raw GitHub link) so the installer can fetch it.
 
 # --- Español ---
 # # WORKER MULTI-MODAL FINAL - VERSIÓN LINUX, COMPLETAMENTE COMENTADA #
 #
 # Esta es la aplicación cliente adaptada para sistemas Linux. El script `install.sh`
 # descargará este archivo y lo configurará para que se ejecute como un servicio en segundo plano.
-#
-# CÓMO PREPARAR PARA EL PAQUETE DE LINUX:
-# 1. IMPORTANTE: Cambia la variable ORCHESTRATOR_PUBLIC_URL de abajo.
-# 2. Sube este archivo a una URL pública (como un enlace raw de GitHub) para que el instalador pueda descargarlo.
 
 # -*- coding: utf-8 -*-
 import requests
@@ -189,24 +181,12 @@ def startup_sequence():
     return worker_id
 
 def main_loop(worker_id):
-    # --- English ---
-    # This is the main operational loop. It continuously asks the server for a role
-    # assignment, loads the appropriate model, and polls for sub-tasks to process.
-    # --- Español ---
-    # Este es el bucle operacional principal. Pide continuamente una asignación de rol
-    # al servidor, carga el modelo apropiado, y solicita subtareas para procesar.
-    global assigned_expert_type
+    # --- Bucle principal MODIFICADO ---
+    # Ahora este bucle solo pide subtareas del tipo ya asignado.
+    print(f"Worker en modo sondeo para tareas de tipo '{assigned_expert_type}'. | Worker polling for '{assigned_expert_type}' tasks.")
     while True:
         try:
-            response = requests.get(f"{ORCHESTRATOR_PUBLIC_URL}/request-assignment/{worker_id}")
-            response.raise_for_status()
-            assignment = response.json()
-            if assigned_expert_type != assignment['assigned_expert']:
-                assigned_expert_type = assignment['assigned_expert']
-                print(f"Assignment updated: I am now a '{assigned_expert_type}' expert. | Asignación actualizada: ahora soy un experto en '{assigned_expert_type}'.")
-                if not initialize_ai_model(assignment['model_info']):
-                    assigned_expert_type = None; time.sleep(10); continue
-            
+            # Si se le ha asignado un rol, buscar una tarea de ese tipo.
             if assigned_expert_type:
                 task_response = requests.get(f"{ORCHESTRATOR_PUBLIC_URL}/get-sub-task/{worker_id}/{assigned_expert_type}")
                 task_response.raise_for_status()
@@ -216,8 +196,13 @@ def main_loop(worker_id):
                     requests.post(f"{ORCHESTRATOR_PUBLIC_URL}/submit-sub-task-result", json={
                         "worker_id": worker_id, "sub_task_id": sub_task['id'], "result": json.dumps(result)
                     })
-                else: time.sleep(POLL_INTERVAL)
-            else: time.sleep(10)
+                else: 
+                    # No hay tareas para mi especialidad, esperar un poco antes de volver a preguntar.
+                    time.sleep(POLL_INTERVAL)
+            else: 
+                # Esto no debería ocurrir si la inicialización fue correcta.
+                print("Error: No expert type assigned. Waiting before retry. | Error: No hay tipo de experto asignado. Esperando para reintentar.")
+                time.sleep(30) # Espera más tiempo si hay un problema fundamental.
         except requests.exceptions.RequestException as e:
             print(f"Communication error: {e}. Retrying... | Error de comunicación: {e}. Reintentando...")
             time.sleep(10)
@@ -225,25 +210,41 @@ def main_loop(worker_id):
 if __name__ == "__main__":
     worker_id = None
     try:
-        # --- English ---
-        # This loop ensures the worker keeps trying to connect even if the server is down on startup.
-        # --- Español ---
-        # Este bucle asegura que el worker siga intentando conectarse aunque el servidor esté caído al arrancar.
-        while worker_id is None:
-            worker_id = startup_sequence()
-            if worker_id is None:
-                print("Could not connect to server. Retrying in 1 minute... | No se pudo conectar al servidor. Reintentando en 1 minuto...")
-                time.sleep(60)
+        # --- Lógica de arranque MODIFICADA ---
+        try:
+            # 1. Registrar el worker y obtener un ID.
+            while worker_id is None:
+                worker_id = startup_sequence()
+                if worker_id is None:
+                    print("Could not connect to server. Retrying in 1 minute... | No se pudo conectar al servidor. Reintentando en 1 minuto...")
+                    time.sleep(60)
 
-        if worker_id:
-            main_loop(worker_id)
+            # 2. Pedir una asignación de experto y cargar el modelo UNA SOLA VEZ.
+            print("Requesting assignment from orchestrator... | Solicitando asignación al orquestador...")
+            response = requests.get(f"{ORCHESTRATOR_PUBLIC_URL}/request-assignment/{worker_id}")
+            response.raise_for_status()
+            assignment = response.json()
+            assigned_expert_type = assignment['assigned_expert']
+            print(f"Assignment received: I am a '{assigned_expert_type}' expert. | Asignación recibida: soy un experto en '{assigned_expert_type}'.")
+            
+            if not initialize_ai_model(assignment['model_info']):
+                 raise Exception("Failed to initialize the AI model.")
+
+            # 3. Iniciar el bucle principal de sondeo de tareas.
+            if worker_id:
+                main_loop(worker_id)
+
+        except Exception as e:
+            # Si ocurre cualquier error, se muestra aquí
+            print("\n" + "="*60)
+            print("An unhandled error occurred. | Ha ocurrido un error no controlado.")
+            print(f"ERROR: {e}")
+            print("The window will close in 60 seconds. | La ventana se cerrará en 60 segundos.")
+            print("="*60)
+            time.sleep(60)
+
     finally:
-        # --- English ---
-        # Cleanup: This code runs when the program is closed (e.g., Ctrl+C).
-        # It stops the heartbeat thread and removes the session file.
-        # --- Español ---
-        # Limpieza: Este código se ejecuta cuando el programa se cierra (ej: Ctrl+C).
-        # Detiene el hilo del heartbeat y elimina el archivo de sesión.
+        # Este código de limpieza se ejecuta siempre, incluso si hay un error
         stop_heartbeat.set()
         if os.path.exists(SESSION_FILE):
             os.remove(SESSION_FILE)

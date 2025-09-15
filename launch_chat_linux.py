@@ -43,59 +43,45 @@ ORCHESTRATOR_PUBLIC_URL = "https://api.noragentia.com"
 SESSION_FILE = os.path.join(os.path.expanduser('~'), '.config', 'HeliosAIWorker', 'worker_session.json')
 
 def main():
-    # --- English ---
-    # This message will be visible if the user runs this from a terminal.
-    # --- Español ---
-    # Este mensaje será visible si el usuario ejecuta esto desde una terminal.
-    print("Looking for an active worker session... | Buscando una sesión de worker activa...")
-
-    # --- English ---
-    # Wait up to 10 seconds for the worker service to start and create the session file.
-    # This handles cases where the user clicks the launcher immediately after a computer restart,
-    # before the background worker service has had time to register and create its session file.
-    # --- Español ---
-    # Esperar hasta 10 segundos a que el servicio del worker arranque y cree el archivo de sesión.
-    # Esto gestiona los casos en que el usuario hace clic en el lanzador inmediatamente
-    # después de reiniciar el ordenador, antes de que el servicio del worker en segundo plano
-    # haya tenido tiempo de registrarse y crear su archivo de sesión.
-    for _ in range(10):
-        if os.path.exists(SESSION_FILE):
-            break
-        time.sleep(1)
-
-    if not os.path.exists(SESSION_FILE):
-        # --- English ---
-        # If the session file is not found after waiting, inform the user.
-        # --- Español ---
-        # Si el archivo de sesión no se encuentra después de esperar, informar al usuario.
-        print("Error: Active worker session not found. | Error: No se encontró la sesión del worker.")
-        print("Please ensure the Helios AI Worker service is running. | Por favor, asegúrate de que el servicio Helios AI Worker se está ejecutando.")
-        time.sleep(5) # Keep the window open for a few seconds so the user can read the message. | Mantener la ventana abierta unos segundos para que el usuario lea el mensaje.
-        return
-
+    # --- Inicio del bloque de captura de errores ---
     try:
-        # --- English ---
-        # Read the worker ID from the JSON session file.
-        # --- Español ---
-        # Leer el ID del worker desde el archivo de sesión JSON.
+        print("Looking for an active worker session... | Buscando una sesión de worker activa...")
+
+        # Esperar hasta 10 segundos a que el worker cree el archivo de sesión.
+        for _ in range(10):
+            if os.path.exists(SESSION_FILE):
+                break
+            time.sleep(1)
+
+        if not os.path.exists(SESSION_FILE):
+            # Si no se encuentra el archivo, lanzamos un error para ser capturado abajo.
+            raise FileNotFoundError("Active worker session not found. Please ensure the worker is running.")
+
+        # Leer el ID del worker desde el archivo de sesión.
         with open(SESSION_FILE, 'r') as f:
             data = json.load(f)
             worker_id = data.get("worker_id")
 
         if worker_id:
-            # --- English ---
-            # Construct the user's unique chat URL and open it in the default web browser.
-            # --- Español ---
-            # Construir la URL de chat única del usuario y abrirla en el navegador web predeterminado.
+            # Construir la URL y abrirla en el navegador.
             chat_url = f"{ORCHESTRATOR_PUBLIC_URL}/?worker_id={worker_id}"
             print(f"Opening chat URL: {chat_url} | Abriendo URL de chat: {chat_url}")
             webbrowser.open(chat_url)
+            print("Success! You can close this window now. | ¡Éxito! Ya puedes cerrar esta ventana.")
+            time.sleep(10) # Pausa para que el usuario pueda leer el mensaje de éxito.
         else:
-            print("Error: The session file is invalid or does not contain a worker ID. | Error: El archivo de sesión es inválido o no contiene un ID de worker.")
-            time.sleep(5)
+            # Si el archivo no tiene un ID, lanzamos un error.
+            raise ValueError("The session file is invalid or does not contain a worker ID.")
+
     except Exception as e:
-        print(f"An error occurred: {e} | Ha ocurrido un error: {e}")
-        time.sleep(5)
+        # Si ocurre cualquier error durante el proceso, se captura y muestra aquí.
+        print("\n" + "="*60)
+        print("An error occurred in the launcher. | Ha ocurrido un error en el lanzador.")
+        print(f"ERROR: {e}")
+        print("Press Enter to close the window. | Presiona Enter para cerrar la ventana.")
+        print("="*60)
+        input() # Espera a que el usuario presione Enter.
+    # --- Fin del bloque de captura de errores ---
 
 if __name__ == "__main__":
     # --- English ---
