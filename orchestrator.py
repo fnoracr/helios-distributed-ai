@@ -81,6 +81,17 @@ def init_db():
     conn.execute('''CREATE TABLE IF NOT EXISTS workers (id TEXT PRIMARY KEY, assigned_expert TEXT, specs TEXT, status TEXT, reputation REAL, last_heartbeat INTEGER)''')
     conn.execute('''CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, prompt TEXT, status TEXT, final_result TEXT)''')
     conn.execute('''CREATE TABLE IF NOT EXISTS sub_tasks (id TEXT PRIMARY KEY, job_id TEXT, expert_type TEXT, data TEXT, status TEXT, assigned_worker_id TEXT, result TEXT, FOREIGN KEY (job_id) REFERENCES jobs (id))''')
+    # --- English ---
+    # New table for conversation history
+    # --- Español ---
+    # Nueva tabla para el historial de conversación
+    conn.execute('''CREATE TABLE IF NOT EXISTS chat_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        worker_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        timestamp INTEGER NOT NULL
+    )''')
     conn.commit()
     conn.close()
 
@@ -102,7 +113,7 @@ async def purge_inactive_workers():
             print(f"👻 Purged {len(inactive_ids)} inactive worker(s). | Purgados {len(inactive_ids)} worker(s) inactivos.")
         conn.close()
 
-app = FastAPI(title="Distributed AI Orchestrator | Orquestador de IA Distribuida", version="12.0.0")
+app = FastAPI(title="Distributed AI Orchestrator | Orquestador de IA Distribuida", version="13.0.0")
 
 @app.on_event("startup")
 async def on_startup():
@@ -180,8 +191,33 @@ def get_sub_task(worker_id: str, expert_type: str):
 @app.post("/submit-sub-task-result")
 def submit_sub_task_result(payload: SubTaskResultPayload):
     conn = get_db_connection()
-    conn.execute("UPDATE sub_tasks SET status = 'completed', result = ? WHERE id = ?", (payload.result, payload.sub_task_id))
+    
+    # --- English ---
+    # JSON cleaning logic and saving the AI's response to the history
+    # --- Español ---
+    # Lógica de limpieza de JSON y guardado de la respuesta de la IA en el historial
+    raw_result_str = json.loads(payload.result).get('generated_text', '')
+    clean_result = {"error": "Failed to parse model output.", "raw_output": raw_result_str}
+    try:
+        start_index = raw_result_str.find('{')
+        end_index = raw_result_str.rfind('}') + 1
+        if start_index != -1 and end_index != 0:
+            json_str = raw_result_str[start_index:end_index]
+            clean_result = json.loads(json_str)
+    except (json.JSONDecodeError, IndexError):
+        pass
+    
+    conn.execute("UPDATE sub_tasks SET status = 'completed', result = ? WHERE id = ?", (json.dumps(clean_result), payload.sub_task_id))
     conn.execute("UPDATE workers SET status = 'idle', reputation = reputation + 1.0 WHERE id = ?", (payload.worker_id,))
+
+    if clean_result and "error" not in clean_result:
+        generation_text = clean_result.get('generation', '')
+        if generation_text:
+            conn.execute("INSERT INTO chat_history (worker_id, role, content, timestamp) VALUES (?, ?, ?, ?)",
+                         (payload.worker_id, 'model', generation_text, int(time.time())))
+            conn.commit()
+    # --- End of History Logic ---
+
     sub_task = conn.execute("SELECT job_id FROM sub_tasks WHERE id = ?", (payload.sub_task_id,)).fetchone()
     if sub_task:
         job_id = sub_task['job_id']
@@ -190,9 +226,11 @@ def submit_sub_task_result(payload: SubTaskResultPayload):
             all_results = conn.execute("SELECT expert_type, result FROM sub_tasks WHERE job_id = ?", (job_id,)).fetchall()
             final_result = {res['expert_type']: json.loads(res['result']) for res in all_results}
             conn.execute("UPDATE jobs SET status = 'completed', final_result = ? WHERE id = ?", (json.dumps(final_result, indent=2), job_id))
+    
     conn.commit()
     conn.close()
     return {"status": "success"}
+
 
 # --- English ---
 # --- API Endpoints for Web UI ---
@@ -202,33 +240,40 @@ def submit_sub_task_result(payload: SubTaskResultPayload):
 async def upload_and_submit_job(worker_id: str = Form(...), prompt: str = Form(""), file: Optional[UploadFile] = File(None)):
     conn = get_db_connection()
     worker = conn.execute("SELECT reputation FROM workers WHERE id = ?", (worker_id,)).fetchone()
-    if not worker: raise HTTPException(status_code=403, detail="Invalid or purged Worker ID. | ID de Worker inválido o purgado.")
-    if worker['reputation'] < REPUTATION_THRESHOLD_TO_SUBMIT: raise HTTPException(status_code=403, detail=f"Worker reputation ({worker['reputation']:.1f}) is too low. | La reputación del worker ({worker['reputation']:.1f}) es demasiado baja.")
+    if not worker: raise HTTPException(status_code=403, detail="Invalid or purged Worker ID.")
+    if worker['reputation'] < REPUTATION_THRESHOLD_TO_SUBMIT: raise HTTPException(status_code=403, detail=f"Worker reputation ({worker['reputation']:.1f}) is too low.")
 
     job_id = str(uuid.uuid4())
-    final_prompt = prompt
-    expert_type, file_path = None, None
     
-    if file:
-        file_extension = os.path.splitext(file.filename)[1].lower()
-        if file_extension in ['.pdf', '.docx']: expert_type = 'document-summarization'
-        elif file_extension in ['.png', '.jpg', '.jpeg']: expert_type = 'image-captioning'
-        elif file_extension in ['.mp3', '.wav', '.flac']: expert_type = 'audio-transcription'
-        else: raise HTTPException(status_code=400, detail="Unsupported file type. | Tipo de archivo no soportado.")
-        file_path = os.path.join(UPLOAD_DIRECTORY, f"{job_id}{file_extension}")
-        with open(file_path, "wb") as buffer: shutil.copyfileobj(file.file, buffer)
-        final_prompt = f"Processing file: {file.filename}. {prompt}"
+    # --- English ---
+    # Chat History Logic
+    # 1. Retrieve recent conversation history
+    # 2. Build the prompt with history
+    # 3. Save the new user message to the history
+    # --- Español ---
+    # Lógica del Historial de Chat
+    # 1. Recuperar el historial reciente de la conversación
+    # 2. Construir el prompt con el historial
+    # 3. Guardar el nuevo mensaje del usuario en el historial
+    history = conn.execute("SELECT role, content FROM chat_history WHERE worker_id = ? ORDER BY timestamp DESC LIMIT 5", (worker_id,)).fetchall()
+    history.reverse() # Put messages in chronological order
 
-    conn.execute("INSERT INTO jobs (id, prompt, status) VALUES (?, ?, ?)", (job_id, final_prompt, "pending"))
-    if expert_type and file_path:
-        conn.execute("INSERT INTO sub_tasks (id, job_id, expert_type, data, status) VALUES (?, ?, ?, ?, ?)",
-                     (str(uuid.uuid4()), job_id, expert_type, json.dumps({"file_path": file_path}), "pending"))
-    elif prompt:
-        # --- English Prompt Template for the Gemma model ---
-        prompt_template = f"<start_of_turn>user\nAnalyze the following text and provide two responses in a single JSON code block: 1. 'summary': a concise one-sentence summary. 2. 'generation': a creative continuation or a relevant response to the text.\n\nUser text: \"{prompt}\"\n\nYour JSON response:<end_of_turn>\n<start_of_turn>model\n"
-        conn.execute("INSERT INTO sub_tasks (id, job_id, expert_type, data, status) VALUES (?, ?, ?, ?, ?)",
-                     (str(uuid.uuid4()), job_id, "general-ai", json.dumps({"text": prompt_template}), "pending"))
-    else: raise HTTPException(status_code=400, detail="A prompt or a file is required. | Se requiere un prompt o un archivo.")
+    conversation_history = "".join([f"<start_of_turn>{row['role']}\n{row['content']}<end_of_turn>\n" for row in history])
+    
+    conn.execute("INSERT INTO chat_history (worker_id, role, content, timestamp) VALUES (?, ?, ?, ?)", (worker_id, 'user', prompt, int(time.time())))
+    conn.commit()
+    
+    prompt_template = (
+        f"{conversation_history}"
+        f"<start_of_turn>user\nAnalyze the following text and provide two responses in a single JSON code block: 1. 'summary': a concise one-sentence summary. 2. 'generation': a creative continuation or a relevant response to the text.\n\nUser text: \"{prompt}\"\n\nYour JSON response:<end_of_turn>\n"
+        f"<start_of_turn>model\n"
+    )
+    # --- End of History Logic ---
+
+    conn.execute("INSERT INTO jobs (id, prompt, status) VALUES (?, ?, ?)", (job_id, prompt, "pending"))
+    conn.execute("INSERT INTO sub_tasks (id, job_id, expert_type, data, status) VALUES (?, ?, ?, ?, ?)",
+                 (str(uuid.uuid4()), job_id, "general-ai", json.dumps({"text": prompt_template}), "pending"))
+    
     conn.commit()
     conn.close()
     return {"status": "success", "job_id": job_id}
@@ -256,10 +301,11 @@ def get_chat_ui():
         <style>
             body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background: #f0f2f5; display: flex; flex-direction: column; height: 100vh; }
             #chat-container { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; }
-            .message { max-width: 70%; margin-bottom: 15px; padding: 10px 15px; border-radius: 18px; line-height: 1.4; }
+            .message { max-width: 70%; margin-bottom: 15px; padding: 10px 15px; border-radius: 18px; line-height: 1.4; white-space: pre-wrap; }
             .user { background: #0084ff; color: white; align-self: flex-end; margin-left: auto; }
             .assistant { background: #e4e6eb; color: #050505; align-self: flex-start; }
             .assistant pre { background: #d0d2d6; padding: 10px; border-radius: 8px; white-space: pre-wrap; word-wrap: break-word; }
+            .assistant .summary { font-weight: bold; margin-bottom: 5px; }
             #input-area { display: flex; padding: 10px; background: #fff; border-top: 1px solid #ddd; align-items: center; }
             #prompt-input { flex: 1; border: 1px solid #ccc; border-radius: 18px; padding: 10px 15px; font-size: 16px; resize: none; }
             #send-button, #file-button { background: #0084ff; color: white; border: none; border-radius: 50%; width: 40px; height: 40px; margin-left: 10px; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
@@ -328,7 +374,16 @@ def get_chat_ui():
                             let resultText = "<strong>Tarea completada.</strong>";
                             if(data.final_result) {
                                 const finalResult = JSON.parse(data.final_result);
-                                resultText += Object.entries(finalResult).map(([key, value]) => `<hr><strong>Resultado de experto en '${key}':</strong><br><pre>${JSON.stringify(value, null, 2)}</pre>`).join('');
+                                
+                                resultText = Object.entries(finalResult).map(([key, value]) => {
+                                    if (key === 'general-ai' && typeof value === 'object' && value !== null) {
+                                        const summary = value.summary || '(No se proporcionó resumen)';
+                                        const generation = value.generation || '(No se proporcionó respuesta)';
+                                        return `<div class="summary">Resumen: ${summary}</div><div>${generation}</div>`;
+                                    } else {
+                                        return `<hr><strong>Resultado de experto en '${key}':</strong><br><pre>${JSON.stringify(value, null, 2)}</pre>`;
+                                    }
+                                }).join('');
                             }
                             updateMessage(jobId, resultText);
                         }
