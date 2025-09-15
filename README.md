@@ -25,8 +25,8 @@ The Helios network consists of two main components:
 ### Getting Started (For Users)
 To join the Helios network, simply install the worker client for your operating system.
 
-* **Windows:** Download and run the HeliosAIWorker_Setup.exe [from the Releases page]([https://github.com/fnoracr/helios-distributed-ai/releases/tag/Version1.0]). The installer will automatically configure the worker to run on startup and place a "Helios AI Chat" shortcut on your desktop.
-* **Linux:** Download the latest `helios-installer-linux.tar.gz` [from the Releases page]([https://github.com/fnoracr/helios-distributed-ai/releases/tag/Version1.0]). Extract it and run `sudo ./install.sh`. An application launcher will be added to your desktop environment.
+* **Windows:** Download and run the HeliosAIWorker_Setup.exe [from the Releases page](https://github.com/fnoracr/helios-distributed-ai/releases/tag/Version1.0). The installer will automatically configure the worker to run on startup and place a "Helios AI Chat" shortcut on your desktop.
+* **Linux:** Download the latest `helios-installer-linux.tar.gz` [from the Releases page](https://github.com/fnoracr/helios-distributed-ai/releases/tag/Version1.0). Extract it and run `sudo ./install.sh`. An application launcher will be added to your desktop environment.
 
 After installation, click the "Helios AI Chat" shortcut to open your personal, authenticated chat session in your web browser.
 
