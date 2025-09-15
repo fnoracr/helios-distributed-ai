@@ -31,7 +31,12 @@ Windows: Download and run the HeliosAIWorker\_Setup.exe from the Releases page. 
 Linux: Download the latest helios-ai-worker-linux-vX.X.tar.gz from the Releases page. Extract it and run sudo bash install.sh. An application launcher will be added to your desktop environment.
 
 After installation, click the "Helios AI Chat" shortcut to open your personal, authenticated chat session in your web browser.
+Uninstall Instructions
+To completely remove the Helios AI Worker from your system, navigate to the extracted folder and run the uninstall script with sudo:
 
+Bash
+
+sudo ./uninstall.sh
 License \& Commercial Use
 This project is open-source and free for personal, non-commercial use only. All users are free to view, modify, and extend the source code for personal purposes.
 
@@ -73,6 +78,13 @@ Windows: Descarga y ejecuta el HeliosAIWorker\_Setup.exe desde la página de Rel
 
 Linux: Descarga el último helios-ai-worker-linux-vX.X.tar.gz desde la página de Releases. Extráelo y ejecuta sudo bash install.sh. Se añadirá un lanzador de aplicación a tu entorno de escritorio.
 
+Instrucciones de Desinstalación
+
+Para eliminar completamente el Helios AI Worker de tu sistema, navega a la carpeta descomprimida y ejecuta el script de desinstalación con `sudo`:
+
+```bash
+sudo ./uninstall.sh
+```
 Después de la instalación, haz clic en el acceso directo "Helios AI Chat", que abrirá tu sesión de chat personal y autenticada en tu navegador web.
 
 Licencia y Uso Comercial

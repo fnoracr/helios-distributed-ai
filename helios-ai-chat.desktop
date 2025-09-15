@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Name=Helios AI Chat
+Comment=Accede al chat de la red de IA distribuida
+Exec=python3 /opt/HeliosAIWorker/launch_chat_linux.py
+Icon=utilities-terminal
+Terminal=true
+Type=Application
+Categories=Network;
